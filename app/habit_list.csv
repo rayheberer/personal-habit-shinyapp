@@ -1,0 +1,23 @@
+task,weekly_target,completion_criteria,high_priority,max_completion_reward,bonus_criteria,max_bonus_reward,current_streak,current_streak_initial_offset,completed_today,bonus_today,weekly_completions_initial_offset,weekly_completions,last_completed,default_order,minor
+Yoga,7,Show up to guided session,FALSE,20,NA,NA,60,59,TRUE,FALSE,NA,NA,2023-01-29,1,FALSE
+Exercise,7,"Show up to gym, 7-minute workout, or 10-minute run",FALSE,10,NA,NA,91,90,TRUE,FALSE,NA,NA,2023-01-29,2,FALSE
+Focus,7,Show up to 25 minute session,FALSE,10,NA,NA,18,17,TRUE,FALSE,NA,NA,2023-01-29,3,FALSE
+Play Music,7,Get instrument ready and in hand,FALSE,5,NA,NA,98,97,TRUE,FALSE,NA,NA,2023-01-29,4,FALSE
+Study,7,Show up to 15+ minute session,FALSE,20,NA,NA,23,22,TRUE,FALSE,NA,NA,2023-01-29,5,FALSE
+Learning Apps,7,"Extend streaks in HelloChinese, Imprint, Duolingo, Duolingo Math, Brilliant",FALSE,5,NA,NA,72,71,TRUE,FALSE,NA,NA,2023-01-29,6,FALSE
+Morning Ritual,7,"Brush teeth, wash face, hair supplement + products",FALSE,1,NA,NA,45,44,TRUE,FALSE,NA,NA,2023-01-29,7,TRUE
+Chores,7,5 minutes,FALSE,1,15 minutes + Reminders item or 60 minutes,10,77,76,TRUE,FALSE,NA,NA,2023-01-29,8,TRUE
+Walk,7,Step outside,FALSE,1,6000 steps,5,33,32,TRUE,FALSE,NA,NA,2023-01-29,9,TRUE
+Water,7,Finish 2L bottle,FALSE,1,NA,NA,32,31,TRUE,FALSE,NA,NA,2023-01-29,10,TRUE
+Paired,7,Extend streak,FALSE,1,NA,NA,87,86,TRUE,FALSE,NA,NA,2023-01-29,11,TRUE
+Journal,7,100 words,FALSE,1,NA,NA,22,21,TRUE,FALSE,NA,NA,2023-01-29,12,TRUE
+Read,7,Set aside distractions and open book,FALSE,1,NA,NA,22,21,TRUE,FALSE,NA,NA,2023-01-29,13,TRUE
+Evening Ritual,7,"Brush + floss teeth, wash face, hair products, guided + unguided stretching",FALSE,1,NA,NA,45,44,TRUE,FALSE,NA,NA,2023-01-29,14,TRUE
+Martial Arts Gym,1,Show up,TRUE,20,NA,NA,NA,NA,TRUE,FALSE,2,3,2023-01-29,15,FALSE
+Gym,3,Show up,TRUE,10,NA,NA,NA,NA,TRUE,FALSE,3,4,2023-01-29,16,FALSE
+Dance,1,Show up to guided session,FALSE,5,NA,NA,NA,NA,TRUE,FALSE,0,1,2023-01-29,17,FALSE
+Work,5,Show up to 25 minute focus,TRUE,20,2 hours,40,NA,NA,TRUE,FALSE,5,6,2023-01-29,18,FALSE
+Create,3,Show up to 25 minute session,FALSE,20,2 hours,40,NA,NA,TRUE,FALSE,3,4,2023-01-29,19,FALSE
+Great Tomb,1,Show up to 25 minute session,FALSE,5,NA,NA,NA,NA,TRUE,FALSE,2,3,2023-01-29,20,FALSE
+Write Music / Lyrics,1,Show up to 25 minute session,FALSE,5,NA,NA,NA,NA,TRUE,FALSE,1,2,2023-01-29,21,FALSE
+Explore,1,Show up to 25 minute session,FALSE,5,NA,NA,NA,NA,TRUE,FALSE,1,2,2023-01-29,22,FALSE

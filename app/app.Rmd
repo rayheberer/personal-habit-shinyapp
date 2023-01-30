@@ -1,0 +1,319 @@
+---
+title: "Ray's Habit Tracker"
+runtime: shiny
+output:
+    flexdashboard::flex_dashboard
+---
+
+```{r setup, include=FALSE}
+library(DT)
+library(magrittr)
+library(ggplot2)
+habit_list <- readr::read_csv("habit_list.csv")
+reward_history <- readr::read_csv("reward_history.csv") %>% 
+  dplyr::mutate(Date = lubridate::ymd(Date)) %>% 
+  dplyr::arrange(dplyr::desc(Date), Type)
+miasma <- readr::read_csv("miasma.csv") %>% 
+  dplyr::mutate(Date = lubridate::ymd(Date)) %>% 
+  dplyr::arrange((Date))
+
+reward_balance <- readRDS("reward_balance.rds")
+
+session_date <- lubridate::today()
+
+# preprocess data objects
+if (tail(miasma, 1)$Date < lubridate::floor_date(session_date, "days")) {
+  miasma <- dplyr::bind_rows(miasma, tibble::tibble(Date = session_date, Miasma = 0))
+}
+
+
+habit_list <- habit_list %>% 
+  dplyr::mutate(last_completed = as.character(last_completed)) %>% 
+  tidyr::replace_na(list(last_completed = "2020-01-01", bonus_today = FALSE)) %>% 
+  dplyr::mutate(
+    current_streak = ifelse(is.na(current_streak), current_streak_initial_offset, current_streak),
+    weekly_completions = ifelse(is.na(weekly_completions), weekly_completions_initial_offset, weekly_completions),
+    completed_today = ifelse(session_date > last_completed, FALSE, completed_today),
+    bonus_today = ifelse(session_date > last_completed, FALSE, bonus_today),
+    default_order = dplyr::row_number(),
+    minor = max_completion_reward == 1
+  )
+
+if (lubridate::floor_date(session_date, "weeks", 1) == session_date) {
+  habit_list <- dplyr::mutate(habit_list, weekly_completions = ifelse(is.na(weekly_completions), weekly_completions, 0))
+}
+
+# derive values
+num_non_minor_dailies <- nrow(dplyr::filter(habit_list, weekly_target == 7, max_completion_reward > 1))
+num_daily <- sum(habit_list$weekly_target == 7)
+num_weekly <- sum(habit_list$weekly_target < 7)
+
+# check for new week
+max_last_completed <- max(lubridate::ymd(habit_list$last_completed))
+print(max_last_completed)
+
+```
+
+# Habit Completion
+
+## Complete Habit {.sidebar data-width="400"}
+
+```{r complete_habit}
+shiny::p()
+
+initial_remaining_habits <- habit_list %>% 
+  dplyr::filter(!completed_today) %>% 
+  dplyr::arrange(minor, dplyr::desc(weekly_target), default_order) %>% 
+  dplyr::pull(task)
+
+remaining_habits <- shiny::reactiveVal(initial_remaining_habits)
+
+shiny::selectInput("habit", "", choices = initial_remaining_habits, selected = initial_remaining_habits[1])
+
+shiny::actionButton("complete", "Complete Habit", width = "75%")
+
+initial_remaining_bonus <- habit_list %>% 
+  dplyr::filter(!completed_today, !is.na(max_bonus_reward)) %>% 
+  dplyr::arrange(default_order) %>% 
+  dplyr::pull(task)
+
+remaining_bonus <- shiny::reactiveVal(initial_remaining_bonus)
+
+shiny::selectInput("bonus", "", choices = initial_remaining_bonus, selected = initial_remaining_bonus[1])
+
+shiny::actionButton("bonus_complete", "Complete Habit Bonus", width = "75%")
+
+shiny::p()
+
+shiny::actionButton("early", "Register Early-Focus Bonus", width = "75%")
+```
+
+## Miasma Line Chart
+
+```{r miasma_chart}
+output$miasma_plot <- shiny::renderPlot({
+  reactive_tables$miasma %>% 
+    ggplot(aes(x = Date, y = Miasma)) +
+    geom_line() +
+    ggtitle("Daily Miasma") +
+    theme_minimal() +
+    ylim(0, 120)
+})
+
+shiny::plotOutput("miasma_plot")
+
+```
+
+### Reward Bank
+```{r reward_balance}
+balance_options <- list(
+  pageLength = 1,
+  dom = "t"
+)
+
+output$reward_balance <- DT::renderDT({
+  reactive_tables$reward_balance
+}, options = balance_options)
+
+DT::DTOutput("reward_balance", width = "97%")
+```
+
+# Habit Lists
+
+### Daily List
+
+```{r reactive_tables}
+
+reactive_tables <- shiny::reactiveValues(
+  habits = habit_list,
+  reward_balance = reward_balance,
+  reward_history = reward_history,
+  miasma = miasma
+)
+
+```
+
+```{r daily_list}
+daily_options <- list(
+  pageLength = min(7, num_non_minor_dailies),
+  dom = ifelse(num_daily > num_non_minor_dailies | num_non_minor_dailies > 7, "tp", "t")
+)
+
+output$daily_list <- DT::renderDT({
+  reactive_tables$habits %>% 
+    dplyr::arrange(minor, completed_today, default_order) %>% 
+    dplyr::filter(weekly_target == 7) %>% 
+    dplyr::select(task, current_streak, completed_today)
+}, options = daily_options)
+
+DT::DTOutput("daily_list", width = "97%")
+
+daily_proxy <- DT::dataTableProxy("daily_list")
+```
+
+### Weekly List
+```{r weekly_list}
+weekly_options <- list(
+  pageLength = 8,
+  dom = ifelse(num_weekly > 8, "tp", "t")
+)
+
+output$weekly_list <- DT::renderDT({
+  reactive_tables$habits %>% 
+    dplyr::arrange(weekly_completions >= weekly_target, completed_today, default_order) %>% 
+    dplyr::filter(weekly_target < 7) %>% 
+    dplyr::select(task, weekly_target, weekly_completions, completed_today)
+}, options = weekly_options)
+
+DT::DTOutput("weekly_list", width = "97%")
+
+weekly_proxy <- DT::dataTableProxy("weekly_list")
+```
+
+```{r complete_habits}
+shiny::observeEvent(input$complete, {
+  if (length(remaining_habits()) == 0) {
+    return()
+  }
+  
+  remaining_habits(setdiff(remaining_habits(), input$habit))
+  shiny::updateSelectInput(inputId = "habit", choices = remaining_habits(), selected = remaining_habits()[1])
+  dailies <- dplyr::filter(reactive_tables$habits, weekly_target == 7)
+  habit_type <- ifelse(input$habit %in% dailies$task, "daily", "weekly")
+  
+  non_minor_habits <- reactive_tables$habits %>% 
+    dplyr::filter(max_completion_reward > 1)
+  
+  non_minor_dailies <- dplyr::filter(non_minor_habits, weekly_target == 7)
+  skipped_yesterday <- non_minor_dailies %>% 
+    dplyr::filter(last_completed == as.character(session_date - 2), !completed_today)
+  
+  # track completion
+  reactive_tables$habits[reactive_tables$habits$task == input$habit, "completed_today"] <- TRUE
+  if (habit_type == "daily") {
+    reactive_tables$habits[reactive_tables$habits$task == input$habit, "current_streak"] <- 
+      reactive_tables$habits[reactive_tables$habits$task == input$habit, "current_streak"] + 1
+  } else {
+    reactive_tables$habits[reactive_tables$habits$task == input$habit, "weekly_completions"] <- 
+      reactive_tables$habits[reactive_tables$habits$task == input$habit, "weekly_completions"] + 1
+  }
+  
+  # specific rewards
+  if (input$habit == "Play Music") {
+    reactive_tables$reward_balance$music <- reactive_tables$reward_balance$music + 1
+  }
+  
+  if (input$habit == "Study") {
+    reactive_tables$reward_balance$books <- reactive_tables$reward_balance$books + 1
+  }
+  
+  if (input$habit == "Work") {
+    if (reactive_tables$habits[reactive_tables$habits$task == "Work", "weekly_completions"] <= 5) {
+      reactive_tables$reward_balance$games <- reactive_tables$reward_balance$games + 1
+    }
+  }
+  
+  # non-zero day reward
+  
+  if (sum(non_minor_habits$completed_today) == 1) {
+    reactive_tables$reward_balance$general <- reactive_tables$reward_balance$general + 1
+  }
+  
+  # non-double-skip day reward
+  if (nrow(skipped_yesterday) == 1) {
+    if (input$habit == skipped_yesterday$task) {
+      reactive_tables$reward_balance$general <- reactive_tables$reward_balance$general + 1
+    }
+  }
+  
+  if (sum(non_minor_dailies$completed_today) == nrow(non_minor_dailies) - 1) {
+    non_minor_habits <- reactive_tables$habits %>% 
+      dplyr::filter(max_completion_reward > 1)
+    
+    non_minor_dailies <- dplyr::filter(non_minor_habits, weekly_target == 7)
+    
+    if (sum(non_minor_dailies$completed_today) == nrow(non_minor_dailies)) {
+      reactive_tables$reward_balance$general <- reactive_tables$reward_balance$general + 1
+    }
+  }
+  
+  # weekly habit complete reward
+  if (input$habit %in% c("Martial Arts Gym", "Gym", "Work")) {
+    if (reactive_tables$habits[reactive_tables$habits$task == input$habit, "weekly_completions"] ==
+        reactive_tables$habits[reactive_tables$habits$task == input$habit, "weekly_target"]) {
+      reactive_tables$reward_balance$general <- reactive_tables$reward_balance$general + 1
+    }
+  }
+  
+  # all weekly habits complete reward
+  non_minor_weeklies <- reactive_tables$habits %>% 
+    dplyr::filter(max_completion_reward > 1, weekly_target < 7) %>% 
+    dplyr::mutate(weekly_goal_met = weekly_completions >= weekly_target)
+  
+  if (sum(non_minor_weeklies$weekly_goal_met) == nrow(non_minor_weeklies) & habit_type == "weekly") {
+    if (reactive_tables$habits[reactive_tables$habits$task == input$habit, "weekly_completions"] ==
+        reactive_tables$habits[reactive_tables$habits$task == input$habit, "weekly_target"]) {
+      reactive_tables$reward_balance$general <- reactive_tables$reward_balance$general + 1
+    }
+  }
+  
+  # miasma reward
+  daily_miasma <- reactive_tables$miasma[nrow(reactive_tables$miasma), ]$Miasma
+  max_reward <- reactive_tables$habits %>% 
+    dplyr::filter(task == input$habit) %>% 
+    dplyr::pull(max_completion_reward)
+  
+  if (daily_miasma < 75) {
+    reward <- min(max_reward, 80 - daily_miasma)
+  } else if (daily_miasma < 100) {
+    reward <- min(max_reward, 5, 100 - daily_miasma)
+  } else if (daily_miasma < 110) {
+    reward <- 1
+  } else {
+    reward <- 0
+  }
+  
+  if (sum(reactive_tables$habits$completed_today) == nrow(reactive_tables$habits)) {
+    reward <- reward + 10
+  }
+  
+  reactive_tables$miasma[nrow(reactive_tables$miasma), "Miasma"] <- daily_miasma + reward
+  
+  # save
+  reactive_tables$habits[reactive_tables$habits$task == input$habit, "last_completed"] <- as.character(session_date)
+  readr::write_csv(reactive_tables$habits, "habit_list.csv")
+  readr::write_csv(reactive_tables$miasma, "miasma.csv")
+  saveRDS(reactive_tables$reward_balance, "reward_balance.rds")
+})
+
+shiny::observeEvent(input$bonus_complete, {
+  remaining_bonus(setdiff(remaining_bonus(), input$habit))
+  shiny::updateSelectInput(inputId = "bonus", choices = remaining_bonus(), selected = remaining_bonus()[1])
+  
+  if (length(remaining_bonus()) == 0) {
+    return()
+  }
+})
+
+```
+
+
+# Reward Redemption
+
+## Redeem Reward {.sidebar data-width="400"}
+
+## Redemption History
+
+```{r redemption_history}
+reward_history_options <- list(
+  pageLength = 8,
+  dom = ifelse(nrow(reward_history) > 8, "tp", "t")
+)
+
+output$reward_history <- DT::renderDT({
+  reactive_tables$reward_history
+}, options = reward_history_options)
+
+DT::DTOutput("reward_history", width = "97%")
+```
+
